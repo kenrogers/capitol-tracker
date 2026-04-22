@@ -123,6 +123,11 @@ export async function runChat(
     state,
   });
 
-  const text = await result.getText();
+  let text = "";
+  for await (const delta of result.getTextStream()) {
+    text += delta;
+    process.stdout.write(delta);
+  }
+  process.stdout.write("\n");
   return text;
 }

@@ -54,7 +54,6 @@ async function main() {
       const profile = loadProfile();
       console.log(`Generating ${days}-day digest for ${profile.state}...\n`);
       const digest = await runDigest(client, openStates, days);
-      console.log(digest);
 
       // Persist digest so chat agent has context
       const digestDir = join(homedir(), ".capitol-tracker");
@@ -79,8 +78,8 @@ async function main() {
             return;
           }
           try {
-            const reply = await runChat(client, openStates, trimmed);
-            console.log("\n" + reply + "\n");
+            await runChat(client, openStates, trimmed);
+            console.log("\n");
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             console.error(`\nError: ${message}\n`);
