@@ -1,37 +1,42 @@
 import { callModel, stepCountIs } from "@openrouter/agent";
 import type { OpenRouter } from "@openrouter/sdk";
+import type { StateAccessor, ConversationState } from "@openrouter/agent";
 import type { OpenStatesClient } from "../services/openstates.js";
 import { getBillDetailsTool, searchBillsTool, compareBillsTool } from "../tools/bills.js";
 import { buildInstructions, loadProfile } from "../config/loader.js";
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
-import { join } from "path";
+import { join, dirname } from "path";
 
 const STATE_DIR = join(homedir(), ".capitol-tracker");
 const STATE_PATH = join(STATE_DIR, "state.json");
 const LAST_DIGEST_PATH = join(STATE_DIR, "last-digest.txt");
 
-interface ChatState {
-  messages: Array<{ role: string; content: string }>;
-}
-
-function loadState(): ChatState | undefined {
-  if (!existsSync(STATE_PATH)) return undefined;
-  try {
-    return JSON.parse(readFileSync(STATE_PATH, "utf-8")) as ChatState;
-  } catch {
-    return undefined;
-  }
-}
-
-function saveState(state: ChatState) {
-  mkdirSync(STATE_DIR, { recursive: true });
-  writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
-}
-
 function loadLastDigest(): string {
   if (!existsSync(LAST_DIGEST_PATH)) return "No digest available.";
   return readFileSync(LAST_DIGEST_PATH, "utf-8");
+}
+
+/**
+ * Create a file-based StateAccessor so the chat agent remembers
+ * conversation history across CLI invocations.
+ */
+function createFileStateAccessor(path: string): StateAccessor {
+  return {
+    load: async () => {
+      if (!existsSync(path)) return null;
+      try {
+        const raw = readFileSync(path, "utf-8");
+        return JSON.parse(raw) as ConversationState;
+      } catch {
+        return null;
+      }
+    },
+    save: async (state) => {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, JSON.stringify(state, null, 2));
+    },
+  };
 }
 
 /**
@@ -42,6 +47,9 @@ function loadLastDigest(): string {
  *
  * It also receives the last digest as context so follow-up questions
  * like "tell me more about SB 70" resolve correctly.
+ *
+ * Conversation state is persisted to ~/.capitol-tracker/state.json
+ * via a StateAccessor, so multi-turn context survives across runs.
  */
 export async function runChat(
   client: OpenRouter,
@@ -67,13 +75,22 @@ export async function runChat(
     compareBillsTool(openStates),
   ] as const;
 
-  const result = callModel(client, {
-    model: "moonshotai/kimi-k2.6",
-    instructions,
-    input: userMessage,
-    tools,
-    stopWhen: stepCountIs(15),
-  });
+  const state = createFileStateAccessor(STATE_PATH);
 
-  return result.getText();
+  try {
+    const result = callModel(client, {
+      model: "moonshotai/kimi-k2.6",
+      instructions,
+      input: userMessage,
+      tools,
+      stopWhen: stepCountIs(15),
+      state,
+    });
+
+    const text = await result.getText();
+    return text;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `Chat error: ${message}. Please check your API keys and try again.`;
+  }
 }

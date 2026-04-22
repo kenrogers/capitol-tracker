@@ -17,22 +17,30 @@ export function getBillDetailsTool(client: OpenStatesClient) {
       identifier: z.string().describe("Bill identifier, e.g. HB 24-1001"),
     }),
     execute: async ({ jurisdiction, session, identifier }) => {
-      const bill = await client.getBill({ jurisdiction, session, identifier });
-      return {
-        id: bill.id,
-        identifier: bill.identifier,
-        title: bill.title,
-        abstract: bill.abstract ?? "",
-        session: bill.session,
-        jurisdiction: bill.jurisdiction,
-        actions: bill.actions
-          .map((a) => `${a.date}: ${a.description}`)
-          .join("\n"),
-        sponsors: bill.sponsorships
-          .map((s) => `${s.name} (${s.primary ? "primary" : "cosponsor"})`)
-          .join("\n"),
-        sources: bill.sources.map((s) => s.url).join("\n"),
-      };
+      try {
+        const bill = await client.getBill({ jurisdiction, session, identifier });
+        return {
+          id: bill.id,
+          identifier: bill.identifier,
+          title: bill.title,
+          abstract: bill.abstract ?? "",
+          session: bill.session,
+          jurisdiction: bill.jurisdiction,
+          actions: bill.actions
+            .map((a) => `${a.date}: ${a.description}`)
+            .join("\n"),
+          sponsors: bill.sponsorships
+            .map((s) => `${s.name} (${s.primary ? "primary" : "cosponsor"})`)
+            .join("\n"),
+          sources: bill.sources.map((s) => s.url).join("\n"),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          error: `Failed to fetch bill details: ${message}`,
+          suggestion: "Verify the bill identifier and session are correct.",
+        };
+      }
     },
   });
 }
@@ -59,21 +67,29 @@ export function searchBillsTool(client: OpenStatesClient) {
         .describe("Number of results to return, max 20"),
     }),
     execute: async ({ jurisdiction, session, updatedSince, perPage }) => {
-      const { results } = await client.listBills({
-        jurisdiction,
-        session,
-        updatedSince,
-        perPage: Math.min(perPage ?? 20, 20),
-      });
-      return {
-        count: results.length,
-        bills: results.map((b) => ({
-          identifier: b.identifier,
-          title: b.title,
-          updatedAt: b.updatedAt,
-          subject: b.subject.join(", ") || "none",
-        })),
-      };
+      try {
+        const { results } = await client.listBills({
+          jurisdiction,
+          session,
+          updatedSince,
+          perPage: Math.min(perPage ?? 20, 20),
+        });
+        return {
+          count: results.length,
+          bills: results.map((b) => ({
+            identifier: b.identifier,
+            title: b.title,
+            updatedAt: b.updatedAt,
+            subject: b.subject.join(", ") || "none",
+          })),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          error: `Failed to search bills: ${message}`,
+          suggestion: "Check your OpenStates API key and network connection.",
+        };
+      }
     },
   });
 }
@@ -94,34 +110,42 @@ export function compareBillsTool(client: OpenStatesClient) {
       identifierB: z.string(),
     }),
     execute: async ({ jurisdiction, session, identifierA, identifierB }) => {
-      const [a, b] = await Promise.all([
-        client.getBill({ jurisdiction, session, identifier: identifierA }),
-        client.getBill({ jurisdiction, session, identifier: identifierB }),
-      ]);
-      return {
-        billA: {
-          identifier: a.identifier,
-          title: a.title,
-          abstract: a.abstract ?? "",
-          sponsors: a.sponsorships.map(
-            (s) => `${s.name} (${s.primary ? "primary" : "cosponsor"})`
-          ),
-          actions: a.actions.map(
-            (act) => `${act.date}: ${act.description}`
-          ),
-        },
-        billB: {
-          identifier: b.identifier,
-          title: b.title,
-          abstract: b.abstract ?? "",
-          sponsors: b.sponsorships.map(
-            (s) => `${s.name} (${s.primary ? "primary" : "cosponsor"})`
-          ),
-          actions: b.actions.map(
-            (act) => `${act.date}: ${act.description}`
-          ),
-        },
-      };
+      try {
+        const [a, b] = await Promise.all([
+          client.getBill({ jurisdiction, session, identifier: identifierA }),
+          client.getBill({ jurisdiction, session, identifier: identifierB }),
+        ]);
+        return {
+          billA: {
+            identifier: a.identifier,
+            title: a.title,
+            abstract: a.abstract ?? "",
+            sponsors: a.sponsorships.map(
+              (s) => `${s.name} (${s.primary ? "primary" : "cosponsor"})`
+            ),
+            actions: a.actions.map(
+              (act) => `${act.date}: ${act.description}`
+            ),
+          },
+          billB: {
+            identifier: b.identifier,
+            title: b.title,
+            abstract: b.abstract ?? "",
+            sponsors: b.sponsorships.map(
+              (s) => `${s.name} (${s.primary ? "primary" : "cosponsor"})`
+            ),
+            actions: b.actions.map(
+              (act) => `${act.date}: ${act.description}`
+            ),
+          },
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          error: `Failed to compare bills: ${message}`,
+          suggestion: "Verify both bill identifiers and the session are correct.",
+        };
+      }
     },
   });
 }

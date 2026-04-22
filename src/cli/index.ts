@@ -3,6 +3,7 @@ import { OpenRouter } from "@openrouter/sdk";
 import { OpenStatesClient } from "../services/openstates.js";
 import { runDigest } from "../agents/digest.js";
 import { runChat } from "../agents/chat.js";
+import { loadProfile } from "../config/loader.js";
 import { writeFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -28,13 +29,14 @@ async function main() {
   switch (command) {
     case "fetch": {
       const days = Number(arg) || 1;
+      const profile = loadProfile();
       const since = new Date();
       since.setDate(since.getDate() - days);
       const updatedSince = since.toISOString().split("T")[0];
 
       const { results } = await openStates.listBills({
-        jurisdiction: "Colorado",
-        session: "2026A",
+        jurisdiction: profile.state,
+        session: profile.session,
         updatedSince,
       });
 
