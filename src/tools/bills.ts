@@ -16,6 +16,17 @@ export function getBillDetailsTool(client: OpenStatesClient) {
       session: z.string().describe("Legislative session, e.g. 2026A"),
       identifier: z.string().describe("Bill identifier, e.g. HB 24-1001"),
     }),
+    outputSchema: z.object({
+      id: z.string(),
+      identifier: z.string(),
+      title: z.string(),
+      abstract: z.string(),
+      session: z.string(),
+      jurisdiction: z.string(),
+      actions: z.string().describe("Newline-delimited list of actions"),
+      sponsors: z.string().describe("Newline-delimited list of sponsors"),
+      sources: z.string().describe("Newline-delimited list of source URLs"),
+    }),
     execute: async ({ jurisdiction, session, identifier }) => {
       try {
         const bill = await client.getBill({ jurisdiction, session, identifier });
@@ -37,8 +48,15 @@ export function getBillDetailsTool(client: OpenStatesClient) {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return {
-          error: `Failed to fetch bill details: ${message}`,
-          suggestion: "Verify the bill identifier and session are correct.",
+          id: "",
+          identifier: "",
+          title: "",
+          abstract: "",
+          session: "",
+          jurisdiction: "",
+          actions: `Failed to fetch bill details: ${message}`,
+          sponsors: "",
+          sources: "",
         };
       }
     },
@@ -66,6 +84,17 @@ export function searchBillsTool(client: OpenStatesClient) {
         .default(20)
         .describe("Number of results to return, max 20"),
     }),
+    outputSchema: z.object({
+      count: z.number(),
+      bills: z.array(
+        z.object({
+          identifier: z.string(),
+          title: z.string(),
+          updatedAt: z.string(),
+          subject: z.string(),
+        })
+      ),
+    }),
     execute: async ({ jurisdiction, session, updatedSince, perPage }) => {
       try {
         const { results } = await client.listBills({
@@ -86,8 +115,8 @@ export function searchBillsTool(client: OpenStatesClient) {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return {
-          error: `Failed to search bills: ${message}`,
-          suggestion: "Check your OpenStates API key and network connection.",
+          count: 0,
+          bills: [],
         };
       }
     },
@@ -99,6 +128,14 @@ export function searchBillsTool(client: OpenStatesClient) {
  * The model uses this when the user asks "how do SB 40 and HB 101 compare?"
  */
 export function compareBillsTool(client: OpenStatesClient) {
+  const billShape = z.object({
+    identifier: z.string(),
+    title: z.string(),
+    abstract: z.string(),
+    sponsors: z.array(z.string()),
+    actions: z.array(z.string()),
+  });
+
   return tool({
     name: "compare_bills",
     description:
@@ -108,6 +145,10 @@ export function compareBillsTool(client: OpenStatesClient) {
       session: z.string(),
       identifierA: z.string(),
       identifierB: z.string(),
+    }),
+    outputSchema: z.object({
+      billA: billShape,
+      billB: billShape,
     }),
     execute: async ({ jurisdiction, session, identifierA, identifierB }) => {
       try {
@@ -142,8 +183,20 @@ export function compareBillsTool(client: OpenStatesClient) {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return {
-          error: `Failed to compare bills: ${message}`,
-          suggestion: "Verify both bill identifiers and the session are correct.",
+          billA: {
+            identifier: identifierA,
+            title: "",
+            abstract: `Failed to compare bills: ${message}`,
+            sponsors: [],
+            actions: [],
+          },
+          billB: {
+            identifier: identifierB,
+            title: "",
+            abstract: "",
+            sponsors: [],
+            actions: [],
+          },
         };
       }
     },

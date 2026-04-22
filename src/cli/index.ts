@@ -4,7 +4,7 @@ import { OpenStatesClient } from "../services/openstates.js";
 import { runDigest } from "../agents/digest.js";
 import { runChat } from "../agents/chat.js";
 import { loadProfile } from "../config/loader.js";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFile, mkdir } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 import * as readline from "readline";
@@ -28,7 +28,7 @@ const arg = process.argv[3];
 async function main() {
   switch (command) {
     case "fetch": {
-      const days = Number(arg) || 1;
+      const days = Number.isFinite(Number(arg)) ? Number(arg) : 1;
       const profile = loadProfile();
       const since = new Date();
       since.setDate(since.getDate() - days);
@@ -50,15 +50,16 @@ async function main() {
     }
 
     case "digest": {
-      const days = Number(arg) || 1;
-      console.log(`Generating ${days}-day digest for Colorado...\n`);
+      const days = Number.isFinite(Number(arg)) ? Number(arg) : 1;
+      const profile = loadProfile();
+      console.log(`Generating ${days}-day digest for ${profile.state}...\n`);
       const digest = await runDigest(client, openStates, days);
       console.log(digest);
 
       // Persist digest so chat agent has context
       const digestDir = join(homedir(), ".capitol-tracker");
-      mkdirSync(digestDir, { recursive: true });
-      writeFileSync(join(digestDir, "last-digest.txt"), digest);
+      await mkdir(digestDir, { recursive: true });
+      await writeFile(join(digestDir, "last-digest.txt"), digest);
       break;
     }
 
@@ -72,12 +73,18 @@ async function main() {
 
       const ask = () =>
         rl.question("> ", async (input) => {
-          if (input.trim().toLowerCase() === "exit") {
+          const trimmed = input.trim();
+          if (trimmed.toLowerCase() === "exit") {
             rl.close();
             return;
           }
-          const reply = await runChat(client, openStates, input);
-          console.log("\n" + reply + "\n");
+          try {
+            const reply = await runChat(client, openStates, trimmed);
+            console.log("\n" + reply + "\n");
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error(`\nError: ${message}\n`);
+          }
           ask();
         });
 

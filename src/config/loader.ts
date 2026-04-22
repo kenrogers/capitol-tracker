@@ -19,39 +19,25 @@ export const ProfileSchema = z.object({
 
 export type Profile = z.infer<typeof ProfileSchema>;
 
-const PROFILE_PATH = join(homedir(), ".capitol-tracker", "profile.yaml");
+const PROFILE_PATH = join(homedir(), ".capitol-tracker", "profile.json");
 
 /**
  * Load the user's profile from disk, or return defaults.
+ *
+ * The profile is stored as JSON so we get full nested-object support
+ * without a heavy YAML parser dependency.
  */
 export function loadProfile(): Profile {
   if (!existsSync(PROFILE_PATH)) {
     return ProfileSchema.parse({});
   }
   const raw = readFileSync(PROFILE_PATH, "utf-8");
-  // Simple YAML-ish parsing for string/number/array values
-  const parsed: Record<string, unknown> = {};
-  let currentKey = "";
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    if (trimmed.includes(":")) {
-      const [key, ...rest] = trimmed.split(":");
-      currentKey = key.trim();
-      const value = rest.join(":").trim();
-      if (value) {
-        if (value.startsWith("[") && value.endsWith("]")) {
-          parsed[currentKey] = value
-            .slice(1, -1)
-            .split(",")
-            .map((s) => s.trim().replace(/^["']|["']$/g, ""));
-        } else if (!isNaN(Number(value))) {
-          parsed[currentKey] = Number(value);
-        } else {
-          parsed[currentKey] = value.replace(/^["']|["']$/g, "");
-        }
-      }
-    }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    console.warn("Profile JSON is malformed. Using defaults.");
+    return ProfileSchema.parse({});
   }
   return ProfileSchema.parse(parsed);
 }

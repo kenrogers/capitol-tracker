@@ -27,6 +27,19 @@ export interface Bill {
   sources: Array<{ url: string }>;
 }
 
+/**
+ * Validate that a value is a plain string. If it's an object with a
+ * `.name` property (OpenStates sometimes returns jurisdiction as an
+ * object), extract the name. Otherwise coerce to string.
+ */
+function extractString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "name" in value) {
+    return String((value as Record<string, unknown>).name);
+  }
+  return String(value);
+}
+
 export class OpenStatesClient {
   private apiKey: string;
 
@@ -49,24 +62,41 @@ export class OpenStatesClient {
     // OpenStates v3 rejects per_page above 20
     url.searchParams.set("per_page", String(Math.min(params.perPage ?? 20, 20)));
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+
     const res = await fetch(url.toString(), {
       headers: { "X-API-KEY": this.apiKey },
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!res.ok) {
       throw new Error(`OpenStates listBills error: ${res.status} ${res.statusText}`);
     }
 
-    const data = (await res.json()) as { results: any[] };
-    const results: BillStub[] = data.results.map((r) => ({
-      id: r.id,
-      identifier: r.identifier,
-      title: r.title,
-      session: r.session,
-      jurisdiction: r.jurisdiction?.name ?? r.jurisdiction,
-      updatedAt: r.updated_at,
-      subject: r.subject ?? [],
-    }));
+    const raw = (await res.json()) as unknown;
+    if (!raw || typeof raw !== "object" || !("results" in raw)) {
+      throw new Error("Unexpected OpenStates response shape: missing 'results' array");
+    }
+    const data = raw as { results: unknown[] };
+
+    const results: BillStub[] = data.results.map((r: unknown) => {
+      if (!r || typeof r !== "object") {
+        throw new Error("Unexpected bill stub shape in OpenStates response");
+      }
+      const obj = r as Record<string, unknown>;
+      return {
+        id: extractString(obj.id),
+        identifier: extractString(obj.identifier),
+        title: extractString(obj.title),
+        session: extractString(obj.session),
+        jurisdiction: extractString(obj.jurisdiction),
+        updatedAt: extractString(obj.updated_at),
+        subject: Array.isArray(obj.subject) ? obj.subject.map(String) : [],
+      };
+    });
+
     return { results };
   }
 
@@ -81,14 +111,61 @@ export class OpenStatesClient {
     url.searchParams.append("include", "sponsorships");
     url.searchParams.append("include", "sources");
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+
     const res = await fetch(url.toString(), {
       headers: { "X-API-KEY": this.apiKey },
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!res.ok) {
       throw new Error(`OpenStates getBill error: ${res.status} ${res.statusText}`);
     }
 
-    return res.json() as Promise<Bill>;
+    const raw = (await res.json()) as unknown;
+    if (!raw || typeof raw !== "object") {
+      throw new Error("Unexpected OpenStates response shape for bill detail");
+    }
+    const obj = raw as Record<string, unknown>;
+
+    // Basic structural validation before casting
+    const required = ["id", "identifier", "title", "session", "jurisdiction"];
+    for (const key of required) {
+      if (!(key in obj)) {
+        throw new Error(`Missing required field '${key}' in OpenStates bill response`);
+      }
+    }
+
+    return {
+      id: extractString(obj.id),
+      identifier: extractString(obj.identifier),
+      title: extractString(obj.title),
+      abstract: obj.abstract ? extractString(obj.abstract) : null,
+      session: extractString(obj.session),
+      jurisdiction: extractString(obj.jurisdiction),
+      actions: Array.isArray(obj.actions)
+        ? obj.actions.map((a: unknown) => {
+            if (!a || typeof a !== "object") return { date: "", description: "" };
+            const ao = a as Record<string, unknown>;
+            return { date: extractString(ao.date), description: extractString(ao.description) };
+          })
+        : [],
+      sponsorships: Array.isArray(obj.sponsorships)
+        ? obj.sponsorships.map((s: unknown) => {
+            if (!s || typeof s !== "object") return { name: "", primary: false };
+            const so = s as Record<string, unknown>;
+            return { name: extractString(so.name), primary: Boolean(so.primary) };
+          })
+        : [],
+      sources: Array.isArray(obj.sources)
+        ? obj.sources.map((s: unknown) => {
+            if (!s || typeof s !== "object") return { url: "" };
+            const so = s as Record<string, unknown>;
+            return { url: extractString(so.url) };
+          })
+        : [],
+    };
   }
 }
