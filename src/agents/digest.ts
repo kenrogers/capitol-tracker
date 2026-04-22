@@ -1,5 +1,5 @@
-import { callModel, stepCountIs } from "@openrouter/agent";
-import type { OpenRouter } from "@openrouter/sdk";
+import { stepCountIs } from "@openrouter/agent";
+import type { OpenRouter } from "@openrouter/agent";
 import type { OpenStatesClient } from "../services/openstates.js";
 import { getBillDetailsTool } from "../tools/bills.js";
 import { buildInstructions, loadProfile } from "../config/loader.js";
@@ -8,7 +8,7 @@ import { buildInstructions, loadProfile } from "../config/loader.js";
  * Run the digest agent.
  *
  * 1. Fetches bill stubs from OpenStates for the given lookback period.
- * 2. Calls callModel with a single tool (get_bill_details).
+ * 2. Calls client.callModel with a single tool (get_bill_details).
  * 3. The model selectively calls the tool for high-impact bills,
  *    then writes a prose digest.
  * 4. Returns the digest text.
@@ -44,7 +44,7 @@ export async function runDigest(
   const billTool = getBillDetailsTool(openStates);
 
   // Run the agent loop
-  const result = callModel(client, {
+  const result = client.callModel({
     model: "moonshotai/kimi-k2.6",
     instructions: buildInstructions(profile),
     input:
@@ -57,7 +57,7 @@ export async function runDigest(
         .join("\n") +
       `\n\nReview these bills. For any that seem highly relevant, call get_bill_details to inspect sponsors, actions, and sources. ` +
       `Then write a concise digest highlighting only the bills that genuinely matter. Max ${profile.digest.max_items} entries.`,
-    tools: [billTool],
+    tools: [billTool] as const,
     stopWhen: stepCountIs(10),
   });
 

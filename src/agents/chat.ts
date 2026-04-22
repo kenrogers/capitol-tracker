@@ -1,8 +1,7 @@
-import { callModel, stepCountIs } from "@openrouter/agent";
-import type { OpenRouter } from "@openrouter/sdk";
-import type { StateAccessor, ConversationState, Item } from "@openrouter/agent";
+import { stepCountIs } from "@openrouter/agent";
+import type { OpenRouter, StateAccessor, ConversationState } from "@openrouter/agent";
 import type { OpenStatesClient } from "../services/openstates.js";
-import { getBillDetailsTool, searchBillsTool, compareBillsTool } from "../tools/bills.js";
+import { getBillDetailsTool, searchBillsTool } from "../tools/bills.js";
 import { buildInstructions, loadProfile } from "../config/loader.js";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
@@ -89,8 +88,7 @@ export async function runChat(
   const tools = [
     getBillDetailsTool(openStates),
     searchBillsTool(openStates),
-    compareBillsTool(openStates),
-  ];
+  ] as const;
 
   const state = createFileStateAccessor(STATE_PATH);
 
@@ -100,21 +98,19 @@ export async function runChat(
   const loaded = await state.load();
   const isFirstTurn = !loaded || loaded.messages.length === 0;
 
-  const input: Item[] = [];
+  const input = [];
   if (isFirstTurn) {
     input.push({
-      type: "message",
-      role: "user",
+      role: "user" as const,
       content: `Here is the latest legislative digest for context. You may refer to bills mentioned below when answering questions:\n\n${lastDigest}`,
     });
   }
   input.push({
-    type: "message",
-    role: "user",
+    role: "user" as const,
     content: userMessage,
   });
 
-  const result = callModel(client, {
+  const result = client.callModel({
     model: "moonshotai/kimi-k2.6",
     instructions,
     input,

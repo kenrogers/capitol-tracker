@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { OpenRouter } from "@openrouter/sdk";
+import { OpenRouter } from "@openrouter/agent";
 import { OpenStatesClient } from "../services/openstates.js";
 import { runDigest } from "../agents/digest.js";
 import { runChat } from "../agents/chat.js";
