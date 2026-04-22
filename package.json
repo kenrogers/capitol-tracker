@@ -1,0 +1,24 @@
+{
+  "name": "capitol-tracker",
+  "version": "1.0.0",
+  "description": "Agentic state capitol tracker built with OpenRouter Agent SDK",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli/index.ts",
+    "fetch": "tsx src/cli/index.ts fetch",
+    "digest": "tsx src/cli/index.ts digest",
+    "chat": "tsx src/cli/index.ts chat"
+  },
+  "dependencies": {
+    "@openrouter/agent": "^0.4.0",
+    "@openrouter/sdk": "^0.12.19",
+    "dotenv": "^16.4.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
