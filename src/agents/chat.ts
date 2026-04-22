@@ -1,6 +1,6 @@
 import { callModel, stepCountIs } from "@openrouter/agent";
 import type { OpenRouter } from "@openrouter/sdk";
-import type { StateAccessor, ConversationState } from "@openrouter/agent";
+import type { StateAccessor, ConversationState, Item } from "@openrouter/agent";
 import type { OpenStatesClient } from "../services/openstates.js";
 import { getBillDetailsTool, searchBillsTool, compareBillsTool } from "../tools/bills.js";
 import { buildInstructions, loadProfile } from "../config/loader.js";
@@ -77,11 +77,17 @@ export async function runChat(
 
   const state = createFileStateAccessor(STATE_PATH);
 
+  const userMessageItem: Item = {
+    type: "message",
+    role: "user",
+    content: userMessage,
+  };
+
   try {
     const result = callModel(client, {
       model: "moonshotai/kimi-k2.6",
       instructions,
-      input: userMessage,
+      input: [userMessageItem],
       tools,
       stopWhen: stepCountIs(15),
       state,
