@@ -3,6 +3,7 @@ import type { OpenRouter } from "@openrouter/agent";
 import type { OpenStatesClient } from "../services/openstates.js";
 import { getBillDetailsTool } from "../tools/bills.js";
 import { buildInstructions, loadProfile } from "../config/loader.js";
+import { buildTraceMetadata, createRunId } from "../observability/trace.js";
 
 /**
  * Run the digest agent.
@@ -19,7 +20,8 @@ import { buildInstructions, loadProfile } from "../config/loader.js";
 export async function runDigest(
   client: OpenRouter,
   openStates: OpenStatesClient,
-  daysBack: number
+  daysBack: number,
+  model: string
 ): Promise<string> {
   const profile = loadProfile();
 
@@ -42,10 +44,16 @@ export async function runDigest(
 
   // Build the single tool the digest agent can use
   const billTool = getBillDetailsTool(openStates);
+  const metadata = buildTraceMetadata({
+    command: "digest",
+    daysBack,
+    profile,
+    runId: createRunId("digest"),
+  });
 
   // Run the agent loop
   const result = client.callModel({
-    model: "moonshotai/kimi-k2.6",
+    model,
     instructions: buildInstructions(profile),
     input:
       `Here are the recently updated bills for ${profile.state}:\n\n` +
@@ -59,6 +67,7 @@ export async function runDigest(
       `Then write a concise digest highlighting only the bills that genuinely matter. Max ${profile.digest.max_items} entries.`,
     tools: [billTool] as const,
     stopWhen: stepCountIs(10),
+    ...metadata,
   });
 
   let text = "";

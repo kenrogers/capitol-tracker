@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "test": "tsx --test tests/**/*.test.ts",
     "dev": "tsx src/cli/index.ts",
     "fetch": "tsx src/cli/index.ts fetch",
     "digest": "tsx src/cli/index.ts digest",

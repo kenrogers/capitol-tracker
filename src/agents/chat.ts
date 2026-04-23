@@ -3,6 +3,7 @@ import type { OpenRouter, StateAccessor, ConversationState } from "@openrouter/a
 import type { OpenStatesClient } from "../services/openstates.js";
 import { getBillDetailsTool, searchBillsTool } from "../tools/bills.js";
 import { buildInstructions, loadProfile } from "../config/loader.js";
+import { buildTraceMetadata, createRunId } from "../observability/trace.js";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { homedir } from "os";
@@ -79,7 +80,8 @@ function createFileStateAccessor(path: string): StateAccessor {
 export async function runChat(
   client: OpenRouter,
   openStates: OpenStatesClient,
-  userMessage: string
+  userMessage: string,
+  model: string
 ): Promise<string> {
   const profile = loadProfile();
   const lastDigest = await loadLastDigest();
@@ -91,6 +93,11 @@ export async function runChat(
   ] as const;
 
   const state = createFileStateAccessor(STATE_PATH);
+  const metadata = buildTraceMetadata({
+    command: "chat",
+    profile,
+    runId: createRunId("chat"),
+  });
 
   // On the first turn, prepend the digest as context so the model
   // knows what bills were recently discussed. Subsequent turns already
@@ -111,12 +118,13 @@ export async function runChat(
   });
 
   const result = client.callModel({
-    model: "moonshotai/kimi-k2.6",
+    model,
     instructions,
     input,
     tools,
     stopWhen: stepCountIs(15),
     state,
+    ...metadata,
   });
 
   let text = "";

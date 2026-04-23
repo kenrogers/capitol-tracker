@@ -5,6 +5,8 @@
 
 const BASE_URL = "https://v3.openstates.org";
 
+type FetchImpl = typeof fetch;
+
 export interface BillStub {
   id: string;
   identifier: string;
@@ -42,9 +44,11 @@ function extractString(value: unknown): string {
 
 export class OpenStatesClient {
   private apiKey: string;
+  private fetchImpl: FetchImpl;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, options: { fetch?: FetchImpl } = {}) {
     this.apiKey = apiKey;
+    this.fetchImpl = options.fetch ?? fetch;
   }
 
   async listBills(params: {
@@ -65,7 +69,7 @@ export class OpenStatesClient {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    const res = await fetch(url.toString(), {
+    const res = await this.fetchImpl(url.toString(), {
       headers: { "X-API-KEY": this.apiKey },
       signal: controller.signal,
     });
@@ -106,7 +110,10 @@ export class OpenStatesClient {
     identifier: string;
   }): Promise<Bill> {
     // OpenStates requires explicit include params to populate arrays
-    const url = new URL(`${BASE_URL}/bills/${params.jurisdiction}/${params.session}/${params.identifier}`);
+    const path = [params.jurisdiction, params.session, params.identifier]
+      .map((part) => encodeURIComponent(part))
+      .join("/");
+    const url = new URL(`${BASE_URL}/bills/${path}`);
     url.searchParams.append("include", "actions");
     url.searchParams.append("include", "sponsorships");
     url.searchParams.append("include", "sources");
@@ -114,7 +121,7 @@ export class OpenStatesClient {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    const res = await fetch(url.toString(), {
+    const res = await this.fetchImpl(url.toString(), {
       headers: { "X-API-KEY": this.apiKey },
       signal: controller.signal,
     });
