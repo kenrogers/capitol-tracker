@@ -67,8 +67,8 @@ function createFileStateAccessor(path: string): StateAccessor {
 /**
  * Run an interactive chat turn.
  *
- * The chat agent has access to all three bill tools so it can answer
- * open-ended questions, fetch details, and compare bills.
+ * The chat agent has access to search and detail tools so it can answer
+ * open-ended questions and fetch details for specific bills.
  *
  * On the first turn (empty state), the latest digest is injected as a
  * one-time context message. On subsequent turns the digest is already
@@ -93,7 +93,7 @@ export async function runChat(
   ] as const;
 
   const state = createFileStateAccessor(STATE_PATH);
-  const metadata = buildTraceMetadata({
+  const metadata = await buildTraceMetadata({
     command: "chat",
     profile,
     runId: createRunId("chat"),

@@ -44,7 +44,7 @@ export async function runDigest(
 
   // Build the single tool the digest agent can use
   const billTool = getBillDetailsTool(openStates);
-  const metadata = buildTraceMetadata({
+  const metadata = await buildTraceMetadata({
     command: "digest",
     daysBack,
     profile,
